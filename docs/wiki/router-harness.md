@@ -1,0 +1,113 @@
+---
+tags:
+  - router-harness
+  - architecture
+  - pi-extension
+  - mock
+sources:
+  - sources/router-harness-intent-20261110.md
+  - sources/router-harness-discuss-20261110.md
+  - sources/router-harness-spec-20261110.md
+  - sources/router-harness-mvp-20261110.md
+updated: 2026-11-10
+---
+
+# Router Harness
+
+[索引](README.md) · 相关：[运行与验收](router-harness-operations.md) · [决策与边界](router-harness-decisions.md) · [术语表](glossary.md)
+
+## 定位
+
+Router Harness 是基于 custom Pi extension 的 router：用户把任务交给 workers，只问一次整体进展，router 查询各项工作、收取已完成结果并汇总，减少在多个 session 之间切换与搬运上下文的负担。**Confirmed**（INTENT v7、MVP v6）。
+
+本轮只实现协调接口与进程内 mock，不实现真实 worker、真实后端、持久化、主动通知或真实沙盒隔离。R-8 workflow 定义为后续版本。
+
+## 核心路径
+
+1. 用户从 Pi CLI 输入整体进展问题，不提供逐项 `workId`。
+2. router 调 `router_list` 取得全部工作及状态。
+3. 对 completed 项调 `router_collect` 读取结果；running 项得到 pending；failed 项得到失败原因。
+4. router 在一条答复中汇总全部工作，区分 running、completed、failed，并标明 mock 数据。
+
+上下文路径：`router_queryContext` 取出带 `recordId`/`sessionId` 的合成记录 → 放入 `router_dispatch.context` → `router_inspect` 回读来源。
+
+## 五项能力
+
+| 模型工具 | 后端方法 | 输入 | 成功 data | 语义 |
+| --- | --- | --- | --- | --- |
+| `router_dispatch` | `dispatch` | `task`；可选 `context` | `WorkSummary` | 创建可跟踪工作；模型不能指定 worker 或 workspace |
+| `router_list` | `list` | 空对象 | `WorkSummary[]` | 返回实例内全部工作，含 completed/failed；空集为 `[]` |
+| `router_inspect` | `inspect` | `workId` | `WorkDetail` | 查看输入、关联与状态；不收取结果 |
+| `router_collect` | `collect` | `workId` | `CollectResult` | 只读收取；不消费、不改状态、不合并代码 |
+| `router_queryContext` | `queryContext` | `query`；可选 `sessionId` | `ContextRecord[]` | 文本子串查询；可精确筛选来源 session；无匹配为 `[]` |
+
+工具名使用 `router_` 前缀，后端方法保留 D-1 的原始命名。详细启动方式见[运行与验收](router-harness-operations.md#启动)。
+
+## 后端契约
+
+每次调用返回统一的 `Outcome<T>`：
+
+- 成功：`ok=true`、`mode`、`data`。
+- 失败：`ok=false`、`mode`、`error={code,message}`。
+- `code` 仅 `INVALID_ARGUMENT`、`NOT_FOUND`、`BACKEND_ERROR`；message 不包含密钥、堆栈或内部认证信息。
+- mock 文本加“模拟结果，未执行真实工作”；工具 details 保存同一 Outcome；错误设置 Pi `isError=true`。
+- 后端抛错转 `BACKEND_ERROR`，不改写成空清单或模拟成功。
+
+核心类型：
+
+| 类型 | 约束 |
+| --- | --- |
+| `WorkSummary` | `workId`、`task`、`workerId`、`sessionId`、`workspaceId` 为 string；`status` 为 running/completed/failed |
+| `WorkDetail` | 包含 `WorkSummary`、`context`、`worker`；不含完成结果 |
+| `WorkerDescriptor` | `workspace={workspaceId,isolation}`；`capabilities={profile,tools,skills}`；mock 的 `isolation=simulated` |
+| `ContextRecord` | `recordId`、`sessionId`、`text` 非空 string；是内容与来源标识，不是可执行引用 |
+| `CollectResult` | completed → `{status,workId,result}`；running → `{status:pending,workId}`；failed → `{status:failed,workId,error.message}` |
+
+`task`、`workId`、`query`、`sessionId` 必须 trim 后非空；schema 不接受额外字段；非法 dispatch 在写入工作表前失败。工作失败是业务状态，不是 `BACKEND_ERROR`。
+
+## mock 数据与生命周期
+
+- 默认两项演示工作：一项 completed、一项 running；三个跨两个 mock session 的上下文记录，其中包含“接口约束”。
+- 默认 dispatch 立即返回 completed，结果是固定模拟文本，明确说明任务没有执行。
+- `createMockBackend` 构造参数可指定空种子、失败工作或运行中派活结果；这些控制仅供接入代码与测试，不增加模型工具参数。
+- `queryContext` 对 text 与 query 做 trim + 小写归一后子串匹配；sessionId 精确过滤；按种子顺序返回，不排序、不分页。
+- 无文件、进程或网络业务副作用；无计时器，固定 running 项不会自行完成。
+
+实例边界（A-S1）：实现上 mock 状态只属于当前 extension 实例，`workId` 带实例标识，启动提示“mock 状态已重置；跨 session 查询来自预置数据”。实现行为 **Confirmed**；规格审批 **Pending**，详见[SPEC 草案假设](router-harness-decisions.md#spec-草案假设)。
+
+## 权限边界
+
+受支持入口固定加载 router，关闭内置工具、MCP、Skill、提示词模板与其他扩展，只暴露五项 `router_*` 工具。
+
+- `session_start` 与 `before_agent_start` 将 active/selected 收紧到五项白名单。
+- `tool_call` 拒绝白名单外调用；其他工具发起的嵌套调用同样被拒绝。
+- 白名单不含 codemode、tool_search、MCP、Bash、文件读写或通用转发入口。
+- 模型不能通过派活输入让 mock 创建进程、打开路径或运行代码；后端由接入方在代码中选择。
+- 该边界约束模型工具权限，不是宿主进程沙盒。Pi 自身加载配置、会话存储和用户直接使用 CLI 不属于模型权限；任意新增可信 extension 仍可执行宿主代码。
+
+## 入口
+
+三种入口固定加载 `examples/router-agent.ts` 并透传参数：
+
+```sh
+npx --yes pi-router-harness
+npx --yes --allow-git=all github:Xpectuer/pi-custom-harness
+npx --yes .
+```
+
+npm 包为 `pi-router-harness@0.1.0`；GitHub 公共仓库为 `Xpectuer/pi-custom-harness`。npm 12 默认禁止 git 源，GitHub 入口必须加 `--allow-git=all`。完整启动、演示与发布信息见[运行与验收](router-harness-operations.md)。
+
+## 兼容性
+
+- 验收基线：Pi 1.5.1、归档 commit `815541a`、Node >= 22.19.0、TypeBox 1.3.27。
+- 扩展使用宿主 TypeBox 与 coding-agent 虚拟模块；不在 `modules/pi` 中修改或提交。
+- 新入口与 `examples/custom-tools.ts` 独立，不改变原示例行为或全局 Pi 设置。
+- 升级 Pi 后必须重做 active/selected、执行守卫与生命周期验收。
+- 交付为 npx 入口新增根 `package.json`，与 SPEC 草案“不在根目录增加 package.json”不一致，标 **Open**，见[规格与实现偏差](router-harness-decisions.md#规格与实现偏差)。
+
+## 来源
+
+- [Router Harness INTENT（v7）](sources/router-harness-intent-20261110.md)
+- [Router Harness 讨论检查点 CP-3](sources/router-harness-discuss-20261110.md)
+- [Router Harness SPEC（草案 v1）](sources/router-harness-spec-20261110.md)
+- [Router Harness MVP（v6）](sources/router-harness-mvp-20261110.md)
