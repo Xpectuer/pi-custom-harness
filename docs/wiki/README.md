@@ -10,6 +10,7 @@
 - [Router Harness](router-harness.md) — 五项 router 工具、后端契约、worker 状态推送、mock 生命周期、权限边界与 npx 入口
 - [Router Harness 运行与验收](router-harness-operations.md) — 启动命令、演示路径、AC-1 至 AC-11 与状态推送证据、发布与排障
 - [Router Harness 决策与边界](router-harness-decisions.md) — D-1 至 D-5、A-S1/A-S2、规格偏差、风险与范围外
+- [Router Harness Workspace 接入](router-harness-workspace-integration.md) — 实现 RouterBackend、映射 workspace、启动 worker、事件推送与验收清单
 
 ## 源
 

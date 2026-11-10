@@ -103,6 +103,8 @@ router 默认把 compact 水线设为当前模型上下文窗口的 50%（`ROUTE
 
 `task`、`workId`、`query`、`sessionId` 必须 trim 后非空；schema 不接受额外字段；非法 dispatch 在写入工作表前失败。工作失败是业务状态，不是 `BACKEND_ERROR`。
 
+真实 workspace 的接线、worker 启动与隔离选择见 [Workspace 接入](router-harness-workspace-integration.md)。
+
 ## mock 数据与生命周期
 
 - 默认两项演示工作：一项 completed、一项 running；三个跨两个 mock session 的上下文记录，其中包含“接口约束”。

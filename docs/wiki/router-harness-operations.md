@@ -105,7 +105,7 @@ AC-2/4/5/6/8/10/11 是后端或扩展层冒烟，不依赖模型验收；AC-1/3/
 
 ## 已知限制
 
-- 未实现真实 worker、真实后端、HTTP 服务、SDK 自建入口、持久化、后台轮询、真实 workspace/沙盒隔离；R-8 workflow 未开始。
+- 未实现真实 worker、真实后端、HTTP 服务、SDK 自建入口、持久化、后台轮询、真实 workspace/沙盒隔离；R-8 workflow 未开始。接入方法见 [Workspace 接入](router-harness-workspace-integration.md)。
 - 状态推送是进程内 `subscribe` 契约；跨进程/跨主机的送达、顺序保证与重试由真实后端实现，通知丢失时只能靠 `router_list` 重新发现。
 - mock 状态只属于当前 extension 实例；重载后旧 `workId` 不应视为仍有效（A-S1 **Pending**）。
 - 本轮未新增永久测试套件；临时冒烟脚本不随仓库提交，后续由 `/qa` 按 AC 补持久测试。

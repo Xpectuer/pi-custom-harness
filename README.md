@@ -2,6 +2,12 @@
 
 Pi Router Agent 的一键启动入口：固定加载 `examples/router-agent.ts`，只暴露五项 `router_*` 协调工具，并使用进程内 mock 后端。
 
+## 文档
+
+- [Workspace 接入 router agent](docs/wiki/router-harness-workspace-integration.md) — 实现 `RouterBackend`、把 workspace 映射到 worker、状态推送与验收清单
+- [Router Harness 架构](docs/wiki/router-harness.md) — 五项工具、后端契约、权限边界与 mock 生命周期
+- [Router Harness 运行与验收](docs/wiki/router-harness-operations.md) — 启动命令、演示路径、验收证据与排障
+
 ## 使用
 
 直接从 GitHub（npm 12 默认禁止 git 源，需显式允许）：

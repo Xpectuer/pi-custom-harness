@@ -61,3 +61,9 @@
 - 过期声明：0；孤儿页：0；缺失页：0；缺交叉引用：0；断链：0。
 - 数据缺口：1 项——跨进程/跨主机送达未实现，已列入范围外与已知限制。
 - 修正：`glossary.md` 将“状态推送”移到英文术语列表末尾；`README.md` 运行页摘要补状态推送证据。
+
+## [2026-11-10] update | Router workspace 接入文档
+
+- 新建：`router-harness-workspace-integration.md`。
+- 更新：`README.md`（索引）、`router-harness.md`（后端契约互链）、仓库 `README.md`（文档入口）。
+- 摘要：记录 `RouterBackend` 接线、workspace 三种分配方式、worker 启动、事件推送、上下文查询与验收；标注 `isolation` 类型缺口，以及真实后端下 `router_dispatch` 工具描述不再准确。
