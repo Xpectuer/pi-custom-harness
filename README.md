@@ -4,10 +4,10 @@ Pi Router Agent 的一键启动入口：固定加载 `examples/router-agent.ts`�
 
 ## 使用
 
-直接从 GitHub：
+直接从 GitHub（npm 12 默认禁止 git 源，需显式允许）：
 
 ```sh
-npx --yes github:Xpectuer/pi-custom-harness
+npx --yes --allow-git=all github:Xpectuer/pi-custom-harness
 ```
 
 npm 发布后：
