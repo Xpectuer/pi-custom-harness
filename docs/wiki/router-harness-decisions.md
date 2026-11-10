@@ -21,8 +21,9 @@ updated: 2026-11-10
 - D-1：五项能力采用 `dispatch`、`list`、`inspect`、`collect`、`queryContext`；工具名加 `router_` 前缀 → [五项能力](router-harness.md#五项能力)
 - D-2：首要失败风险是协调负担未下降——router 能派活，但用户仍要反复追问、辨认任务与搬运结果 → [核心路径](router-harness.md#核心路径)
 - D-3：采用 Pi extension、复用 Pi CLI；SDK 自建入口与独立 HTTP 后端不采用 → [启动](router-harness-operations.md#启动)
-- D-4：按需统一汇总；本轮不要求主动通知或后台轮询 → [核心路径](router-harness.md#核心路径)
-- Q-1、Q-2 已解决；INTENT v7 批准 R-1 至 R-7、S-1 至 S-10 与 D-1 至 D-4，R-8 仍范围外 → [INTENT 源页](sources/router-harness-intent-20261110.md)
+- D-4：按需统一汇总仍是主路径；worker 状态变化由后端可选 `subscribe` 推送并唤醒 router，不引入后台轮询 → [状态推送](router-harness.md#状态推送)
+- D-5：推送只携带定位信息（`eventId`、`workId`、`status`、`workerId`、`sessionId`、`occurredAt`），结果仍由 `router_collect` 读取；同一 `eventId` 去重，200ms 内合并 → [状态推送](router-harness.md#状态推送)
+- Q-1、Q-2 已解决；INTENT v7 批准 R-1 至 R-7、S-1 至 S-10 与 D-1 至 D-4，R-8 仍范围外；D-4/D-5 的状态推送已在当前实现落地 → [状态推送](router-harness.md#状态推送)
 - 2026-11-10 用户确认：npx 交付允许在根目录新增 `package.json`，仅用于入口，无依赖、无构建脚本 → [规格偏差与解决](#规格与实现偏差)
 
 ## SPEC 草案假设
@@ -30,7 +31,7 @@ updated: 2026-11-10
 | 编号 | 假设 | 状态 | 依据与影响 |
 | --- | --- | --- | --- |
 | A-S1 | 内存 mock 随 extension 实例重建；跨 session 数据来自预置记录；workId 带实例标识 | **Pending** | 依据仅 mock 范围与 Pi 生命周期；实现已按此运行，仍需 SPEC 审查确认 |
-| A-S2 | 三模块布局（入口、接口、mock）与入口注入足以隔离后端 | **Pending** | 已用独立适配器验证可替换（AC-8）；不新增注册框架，仍需 SPEC 审查 |
+| A-S2 | 模块化布局（入口、接口、mock、通知）与入口注入足以隔离后端 | **Pending** | 已用独立适配器验证可替换（AC-8）；不新增注册框架，仍需 SPEC 审查 |
 
 ## 规格与实现偏差
 
@@ -53,6 +54,9 @@ SPEC v1 是历史草案；以下旧说法与新决定/证据成对保留，不�
 | 权限 | 其他扩展或 codemode 可引入执行入口 | 受支持入口禁用其他扩展；核对 active/selected 与执行守卫 |
 | 契约 | mock 能力描述容易被理解为真实隔离 | 所有输出标 mock；`isolation=simulated`；AC-9/AC-10 检查反例 |
 | 数据 | 上下文可携带恶意指令或敏感文本 | 当前只用合成记录；提示词视其为数据；真实数据授权属于接入方责任 |
+| 通知 | 重复事件或完成风暴导致多次唤醒 | 按 `eventId` 去重，200ms 合并；模型只以 `collect` 结果为准 |
+| 通知 | session 结束、崩溃或发送失败丢失提醒 | 允许丢失；工作状态仍可由 `router_list` / `router_collect` 发现，通知不是状态唯一来源 |
+| 通知 | 自定义消息被模型误当用户指令 | 消息前缀声明“系统推送”，提示词规定只按 `workId` 调 `collect`；事件不含可执行引用 |
 
 ## 范围外
 
@@ -60,14 +64,15 @@ SPEC v1 是历史草案；以下旧说法与新决定/证据成对保留，不�
 - 真实 worker 执行、模型子代理、调度池。
 - 真实上下文后端、读取真实历史 session、索引服务、持久化。
 - SDK 自建 CLI、HTTP 服务、Web UI。
-- 主动通知、后台轮询、自动重试、超时策略、生产规模 SLA。
+- 跨进程/跨主机的推送传输、后台轮询、自动重试、超时策略、生产规模 SLA；`subscribe` 是进程内契约，真实后端负责把 worker 完成送达 router 进程。
 - 真实目录分配、容器、micro-VM、沙盒隔离证明。
 - 合并代码、删除 workspace、销毁 session。
 
 ## 下一步
 
-- 后续 SPEC 修订可同步本次决定：根 `package.json` 允许、凭证环境化、AC 以 MVP 为准；A-S1/A-S2 仍需规格审查。
-- 由 `/qa` 按 AC 补持久测试；当前只有临时冒烟证据。
+- 后续 SPEC 修订可同步本次决定：根 `package.json` 允许、凭证环境化、AC 以 MVP 为准、状态推送契约；A-S1/A-S2 仍需规格审查。
+- 由 `/qa` 补持久测试：现有 AC 之外，至少覆盖事件去重/合并、session 生命周期与无 `subscribe` 适配器；当前只有临时冒烟证据。
+- 真实 worker 接入时，由后端实现跨进程送达与事件顺序保证；router 侧只依赖 `subscribe`。
 - 升级 Pi 后重做 active/selected、执行守卫与生命周期验收。
 
 ## 来源
