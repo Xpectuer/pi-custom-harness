@@ -20,4 +20,6 @@
 
 - 五项 `router_*` 工具，默认进程内 mock 后端；真实模型通过 AC-1、AC-3、AC-7、AC-9。
 - 双 npx 入口可用：`npx --yes pi-router-harness` 与 GitHub 入口。
-- Q-S1 已由有效凭证解决；A-S1、A-S2 仍是 SPEC 草案假设，待规格审查。
+- 根 `package.json` 约束已由用户取消，仅用于 npx 入口，无依赖、无构建脚本。
+- Q-S1 已由有效凭证解决；凭证只存 Pi 存储，不随 Git 提交。AC 以 MVP v6 执行记录为准。
+- A-S1、A-S2 仍是 SPEC 草案假设，待规格审查。

@@ -39,6 +39,15 @@ pi --no-extensions -e ./examples/router-agent.ts \
 
 包装器找不到 Pi 时以 `127` 退出，并提示安装或设置 `PI_BIN`。显式 `-e` 路径不依赖项目 trust。
 
+## 凭证
+
+真实模型验收使用开发者自己的 Pi 凭证；仓库不保存、也不打印 key/token。
+
+1. 在 Pi 中运行 `pi auth login <provider>`，按提示完成登录。
+2. 凭证由 Pi 凭证存储管理（如 `~/.pi/agent/`），**不随 Git 提交**；不要写入 `.env`、README、工单、测试快照或提交信息。
+3. 遇到 `401` 先重新登录；本地 mock 与不依赖模型的探针仍可运行，但不能据此宣称端到端已验收。
+4. 每位开发者各自配置；CI 或共享环境用 secret 注入，不把凭证带进仓库。
+
 ## 演示路径
 
 | 步骤 | 操作 | 预期观察 |
@@ -64,7 +73,7 @@ pi --no-extensions -e ./examples/router-agent.ts \
 | AC-10 | Confirmed | inspect 返回 `profile=pi-default`、`tools=[read,bash,edit,write]`、`skills=true`、`isolation=simulated` |
 | AC-11 | Confirmed | 空种子 list 返回 `[]`；空白 task/context/query/sessionId 拒绝；非法派活不新增工作；适配器抛错转 BACKEND_ERROR |
 
-AC-2/4/5/6/8/10/11 是后端或扩展层冒烟，不依赖模型验收；AC-1/3/7/9 含真实模型交互。SPEC v1 原文称 AC 为“待执行计划”，MVP v6 已提供执行记录，这一文本差异见[规格与实现偏差](router-harness-decisions.md#规格与实现偏差)。
+AC-2/4/5/6/8/10/11 是后端或扩展层冒烟，不依赖模型验收；AC-1/3/7/9 含真实模型交互。SPEC v1 原文称 AC 为“待执行计划”；用户已确认以 MVP v6 的执行记录为准，该偏差已 **Resolved**。
 
 ## 发布
 
@@ -73,6 +82,7 @@ AC-2/4/5/6/8/10/11 是后端或扩展层冒烟，不依赖模型验收；AC-1/3/
 - npm 入口实测：`npx --yes pi-router-harness --version` → `1.5.1`；真实模型汇总已跑通。
 - GitHub 入口实测：`npx --yes --allow-git=all github:Xpectuer/pi-custom-harness --version` → `1.5.1`；真实模型汇总已跑通。
 - npm tarball 首次传播曾短暂 404，待 CDN 缓存过期后恢复 200；后续安装正常。
+- 根 `package.json` 仅用于 npx 入口，无依赖、无构建脚本；用户已取消“不得新增”约束。
 
 ## 排障
 
@@ -89,7 +99,7 @@ AC-2/4/5/6/8/10/11 是后端或扩展层冒烟，不依赖模型验收；AC-1/3/
 - 未实现真实 worker、真实后端、HTTP 服务、SDK 自建入口、持久化、主动通知、后台轮询、真实 workspace/沙盒隔离；R-8 workflow 未开始。
 - mock 状态只属于当前 extension 实例；重载后旧 `workId` 不应视为仍有效（A-S1 **Pending**）。
 - 本轮未新增永久测试套件；临时冒烟脚本不随仓库提交，后续由 `/qa` 按 AC 补持久测试。
-- SPEC v1 仍是草案；A-S1/A-S2 与根 `package.json` 偏差待规格审查（**Open**）。
+- SPEC v1 仍是历史草案；A-S1/A-S2 仍待规格审查，根 `package.json` 与凭证状态已按用户决定解决。
 - 升级 Pi 后必须重做 active/selected、执行守卫与生命周期验收。
 
 ## 来源

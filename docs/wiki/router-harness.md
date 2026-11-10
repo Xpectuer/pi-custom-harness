@@ -103,7 +103,7 @@ npm 包为 `pi-router-harness@0.1.0`；GitHub 公共仓库为 `Xpectuer/pi-custo
 - 扩展使用宿主 TypeBox 与 coding-agent 虚拟模块；不在 `modules/pi` 中修改或提交。
 - 新入口与 `examples/custom-tools.ts` 独立，不改变原示例行为或全局 Pi 设置。
 - 升级 Pi 后必须重做 active/selected、执行守卫与生命周期验收。
-- 交付为 npx 入口新增根 `package.json`，与 SPEC 草案“不在根目录增加 package.json”不一致，标 **Open**，见[规格与实现偏差](router-harness-decisions.md#规格与实现偏差)。
+- 用户已确认 npx 入口可在根目录新增 `package.json`；仅用于入口，无依赖、无构建脚本。旧 SPEC 文本保留为历史，见[规格偏差与解决](router-harness-decisions.md#规格与实现偏差)。
 
 ## 来源
 

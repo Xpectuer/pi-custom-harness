@@ -31,7 +31,7 @@ npx --yes . --mode json --no-session "汇总当前全部工作的进展与已完
 ## 前置
 
 - Pi CLI 已安装且在 `PATH` 中；可用 `PI_BIN=/path/to/pi` 指定可执行文件。
-- 真实模型需要有效的 Pi 凭证，使用 `pi auth login <provider>` 配置。
+- 真实模型需要有效的 Pi 凭证：运行 `pi auth login <provider>`；凭证保存在 Pi 凭证存储，不随 Git 提交。
 - Node.js >= 22.19.0。
 
 ## 边界

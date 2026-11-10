@@ -23,6 +23,7 @@ updated: 2026-11-10
 - D-3：采用 Pi extension、复用 Pi CLI；SDK 自建入口与独立 HTTP 后端不采用 → [启动](router-harness-operations.md#启动)
 - D-4：按需统一汇总；本轮不要求主动通知或后台轮询 → [核心路径](router-harness.md#核心路径)
 - Q-1、Q-2 已解决；INTENT v7 批准 R-1 至 R-7、S-1 至 S-10 与 D-1 至 D-4，R-8 仍范围外 → [INTENT 源页](sources/router-harness-intent-20261110.md)
+- 2026-11-10 用户确认：npx 交付允许在根目录新增 `package.json`，仅用于入口，无依赖、无构建脚本 → [规格偏差与解决](#规格与实现偏差)
 
 ## SPEC 草案假设
 
@@ -33,13 +34,15 @@ updated: 2026-11-10
 
 ## 规格与实现偏差
 
-SPEC v1 是草案；以下旧说法与新证据成对保留，不静默删除，也不直接改写 SPEC。
+SPEC v1 是历史草案；以下旧说法与新决定/证据成对保留，不静默删除，也不直接改写归档原文。
 
-| 主题 | SPEC v1 旧说法 | 交付证据 | 状态 |
+| 主题 | SPEC v1 旧说法 | 交付证据与决定 | 状态 |
 | --- | --- | --- | --- |
-| 根 `package.json` | “不在根目录增加 package.json” | 为 npx 入口新增根 `package.json`，无依赖、无构建脚本；`AGENTS.md` 已记录该例外 | **Open**：待 SPEC 更新/批准 |
-| Q-S1 真实模型凭证 | 写作时记录“真实模型凭证不可用” | 用户提供并保存有效凭证后，AC-1/3/7/9 真实模型验收通过；密钥未写入仓库 | **Open**：SPEC 文本仍为旧状态；交付证据 **Confirmed** |
-| AC 状态 | “所有条目均为待执行验收计划，不是通过记录” | MVP v6 为 AC-1 至 AC-11 提供实际运行记录 | **Open**：SPEC 文本待更新；交付证据 **Confirmed** |
+| 根 `package.json` | “不在根目录增加 package.json” | 用户于 2026-11-10 取消该约束；根 `package.json` 仅用于 npx 入口，无依赖、无构建脚本，`AGENTS.md` 已记录 | **Resolved** |
+| Q-S1 真实模型凭证 | 写作时记录“真实模型凭证不可用” | 原会话在用户提供并保存有效凭证后，AC-1/3/7/9 真实模型验收通过；凭证存 Pi 存储，不随 Git 提交 | **Resolved（环境相关）** |
+| AC 状态 | “所有条目均为待执行验收计划，不是通过记录” | MVP v6 已执行 AC-1 至 AC-11 并提供证据；以 MVP 记录为准 | **Resolved** |
+
+> 凭证提醒：每位开发者需自行运行 `pi auth login <provider>`，凭证由 Pi 凭证存储管理；不要提交 key、token、`.env` 或认证配置文件。
 
 ## 风险
 
@@ -63,7 +66,7 @@ SPEC v1 是草案；以下旧说法与新证据成对保留，不静默删除，
 
 ## 下一步
 
-- 更新 SPEC：确认 A-S1/A-S2，处理根 `package.json` 偏差，并把 Q-S1/AC 状态改为当前事实。
+- 后续 SPEC 修订可同步本次决定：根 `package.json` 允许、凭证环境化、AC 以 MVP 为准；A-S1/A-S2 仍需规格审查。
 - 由 `/qa` 按 AC 补持久测试；当前只有临时冒烟证据。
 - 升级 Pi 后重做 active/selected、执行守卫与生命周期验收。
 

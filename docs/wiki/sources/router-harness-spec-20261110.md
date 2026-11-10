@@ -13,7 +13,7 @@ updated: 2026-11-10
 
 ## 概要
 
-SPEC v1 是草案，定义 R-1 至 R-7 的接口、11 条 AC、S-1 至 S-10 场景映射与 mock 边界。文中的 AC 是“待执行验收计划”，不是通过记录；本页只编译其设计，不把草案文字当作已验证事实。
+SPEC v1 是历史草案，定义 R-1 至 R-7 的接口、11 条 AC、S-1 至 S-10 场景映射与 mock 边界。文中的 AC 当时写作“待执行验收计划”；MVP v6 已提供执行记录，用户确认以 MVP 为准。本页只编译设计，不把旧草案文字当作当前状态。
 
 ## 提取要点
 
@@ -28,6 +28,7 @@ SPEC v1 是草案，定义 R-1 至 R-7 的接口、11 条 AC、S-1 至 S-10 场�
 
 - AC-1 至 AC-11 覆盖一次汇总、工具集、负向执行、状态不变量、上下文、适配器、mock 标识、worker 契约与边界错误 → [验收证据](../router-harness-operations.md#验收证据)
 - 验证方式包括真实 Pi CLI、RPC 生命周期探针、后端冒烟、临时适配器与副作用观察 → [验收证据](../router-harness-operations.md#验收证据)
+- SPEC 原文称 AC 为待执行计划；用户已确认以 MVP v6 的执行记录为准 → **Resolved**：[规格偏差与解决](../router-harness-decisions.md#规格与实现偏差)
 - 持久测试只覆盖消费方可见的不变量、边界和状态；入口装配用临时冒烟 → [已知限制](../router-harness-operations.md#已知限制)
 
 ### 权限与生命周期
@@ -41,11 +42,11 @@ SPEC v1 是草案，定义 R-1 至 R-7 的接口、11 条 AC、S-1 至 S-10 场�
 
 - 风险包括模型不保证完整汇总、扩展重载丢状态、其他扩展/codemode 引入执行入口、mock 被误读为真实隔离、上下文恶意指令 → [风险](../router-harness-decisions.md#风险)
 - 验收基线为 Pi 1.5.1、归档 commit `815541a`、Node >= 22.19.0、TypeBox 1.3.27 → [兼容性](../router-harness.md#兼容性)
-- 草案原文写“不在根目录增加 package.json”；交付阶段为 npx 入口新增根 `package.json`，形成偏差 → **Open**：[规格与实现偏差](../router-harness-decisions.md#规格与实现偏差)
+- 草案原文写“不在根目录增加 package.json”；用户已取消该约束，npx 入口允许根 `package.json`（无依赖、无构建脚本）→ **Resolved**：[规格偏差与解决](../router-harness-decisions.md#规格与实现偏差)
 
 ### 待决问题
 
-- Q-S1 在 SPEC 写作时记录“真实模型凭证不可用”；MVP v6 记录用户提供凭证后真实模型 AC 通过 → **Open**：旧说法保留，新证据见 [规格与实现偏差](../router-harness-decisions.md#规格与实现偏差)
+- Q-S1 在 SPEC 写作时记录“真实模型凭证不可用”；用户提供并保存有效凭证后，AC-1/3/7/9 真实模型验收通过；凭证存 Pi 存储、不随 Git 提交 → **Resolved（环境相关）**：[规格偏差与解决](../router-harness-decisions.md#规格与实现偏差)
 - A-S1、A-S2 仍为草案假设，需随规格审查确认 → [SPEC 草案假设](../router-harness-decisions.md#spec-草案假设)
 
 ## 要点落页
@@ -54,7 +55,7 @@ SPEC v1 是草案，定义 R-1 至 R-7 的接口、11 条 AC、S-1 至 S-10 场�
 | --- | --- |
 | 五项接口、Outcome、类型、mock | [架构](../router-harness.md) |
 | AC-1 至 AC-11、验证入口、持久测试边界 | [运行与验收](../router-harness-operations.md) |
-| A-S1/A-S2、Q-S1、偏差、风险 | [决策与边界](../router-harness-decisions.md) |
+| A-S1/A-S2、已解决偏差、风险 | [决策与边界](../router-harness-decisions.md) |
 
 ## 链接
 

@@ -35,7 +35,7 @@ MVP v6 是交付与验收记录：五项 `router_*` 工具、进程内 mock 后�
 
 ### 状态与限制
 
-- Q-S1 已由用户提供并保存有效凭证后解决；SPEC 未改写，仍为草案 → **Open**：[规格与实现偏差](../router-harness-decisions.md#规格与实现偏差)
+- Q-S1 已由用户提供并保存有效凭证后解决；凭证存 Pi 存储、不随 Git 提交；SPEC 文本仍为历史草案 → **Resolved（环境相关）**：[规格偏差与解决](../router-harness-decisions.md#规格与实现偏差)
 - A-S1、A-S2 仍是草案假设，待规格审查 → [SPEC 草案假设](../router-harness-decisions.md#spec-草案假设)
 - 真实 worker、真实后端、持久化、主动通知、真实沙盒隔离与 R-8 workflow 均未实现 → [范围外](../router-harness-decisions.md#范围外)
 - 本轮未新增永久测试套件；后续由 `/qa` 按 AC 补持久测试 → [已知限制](../router-harness-operations.md#已知限制)

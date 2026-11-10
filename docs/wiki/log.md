@@ -37,3 +37,10 @@
 - 矛盾（已成对标注）：SPEC 的 Q-S1 写真实模型凭证不可用，MVP v6 记录凭证修复后 AC-1/3/7/9 通过；标 **Open**（SPEC 文本待更新）。
 - 矛盾（已成对标注）：SPEC 称 AC 为待执行计划，MVP v6 提供执行记录；标 **Open**（SPEC 文本待更新）。
 - 数据缺口：永久测试尚未补，下一步由 `/qa` 按 AC 建立。
+
+## [2026-11-10] update | Router Harness 约束与凭证状态
+
+- 根 `package.json`：用户取消“不在根目录增加”约束；根 `package.json` 仅用于 npx 入口，无依赖、无构建脚本。
+- 凭证：真实模型使用开发者自己的 Pi 凭证，运行 `pi auth login <provider>`；凭证存 Pi 存储，不随 Git 提交。
+- AC：SPEC v1 的“待执行计划”文本保留为历史；以 MVP v6 执行记录为准。
+- 更新：`router-harness.md`、`router-harness-operations.md`、`router-harness-decisions.md`、`sources/router-harness-spec-20261110.md`、`sources/router-harness-mvp-20261110.md`、`../archives/dev-router-harness-261110/README.md`、`../../README.md`。
