@@ -32,8 +32,11 @@ pi -e ./examples/custom-tools.ts --no-builtin-tools --no-mcp
 # 精确白名单
 pi -e ./examples/custom-tools.ts --tools custom_ping --no-mcp
 
-# 一键启动 router harness（本地；发布后用 npx --yes pi-router-harness）
+# 一键启动 router harness（本地）
 npx --yes .
+
+# 公共 GitHub 入口（npm 12 需允许 git 源）
+npx --yes --allow-git=all github:Xpectuer/pi-custom-harness
 ```
 
 项目内固化时可写 `.pi/settings.json`：
