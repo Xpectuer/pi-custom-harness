@@ -10,7 +10,7 @@ Pi Router Agent 的一键启动入口：固定加载 `examples/router-agent.ts`�
 npx --yes --allow-git=all github:Xpectuer/pi-custom-harness
 ```
 
-npm 发布后：
+npm：
 
 ```sh
 npx --yes pi-router-harness
