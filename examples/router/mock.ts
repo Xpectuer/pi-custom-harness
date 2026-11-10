@@ -13,6 +13,9 @@ import type {
   Outcome,
   RouterBackend,
   WorkDetail,
+  WorkEvent,
+  WorkEventStatus,
+  WorkEventListener,
   WorkStatus,
   WorkSummary,
   WorkerDescriptor,
@@ -35,6 +38,19 @@ export interface MockBackendOptions {
   dispatchStatus?: WorkStatus;
   dispatchResult?: string;
   dispatchFailureMessage?: string;
+  /**
+   * > 0 时，running 种子与 running 派活在该毫秒数后自动完成，
+   * 并通过 subscribe 推送 work_completed。默认 0：不自动完成。
+   */
+  completeAfterMs?: number;
+}
+
+/** mock 专用控制面：只给接入代码/测试模拟 worker 状态流转，不暴露给模型。 */
+export interface MockRouterBackend extends RouterBackend {
+  /** 将 running 工作置为 completed 并推送事件；返回是否发生流转。 */
+  complete(workId: string, result?: string): boolean;
+  /** 将 running 工作置为 failed 并推送事件；返回是否发生流转。 */
+  fail(workId: string, message?: string): boolean;
 }
 
 const DEFAULT_COMPLETED_RESULT =
@@ -135,17 +151,64 @@ function defaultContexts(): ContextRecord[] {
   ];
 }
 
-export function createMockBackend(options: MockBackendOptions = {}): RouterBackend {
+export function createMockBackend(
+  options: MockBackendOptions = {},
+): MockRouterBackend {
   const mode: BackendMode = "mock";
   const instanceTag = randomUUID().replace(/-/g, "").slice(0, 8);
   const works = new Map<string, MockWork>();
   const order: string[] = [];
   const contexts = (options.contexts ?? defaultContexts()).map((record) => ({ ...record }));
+  const listeners = new Set<WorkEventListener>();
   let dispatchCounter = 0;
+  let eventCounter = 0;
+
+  const emit = (work: MockWork, status: WorkEventStatus): void => {
+    const event: WorkEvent = {
+      eventId: `${work.summary.workId}:${status}:${++eventCounter}`,
+      workId: work.summary.workId,
+      status,
+      workerId: work.summary.workerId,
+      sessionId: work.summary.sessionId,
+      occurredAt: new Date().toISOString(),
+    };
+    for (const listener of [...listeners]) {
+      try {
+        listener(event);
+      } catch {
+        // 监听器异常不影响 mock 的状态流转。
+      }
+    }
+  };
+
+  const transition = (
+    workId: string,
+    status: WorkEventStatus,
+    payload: { result?: string; failureMessage?: string } = {},
+  ): boolean => {
+    if (!isNonEmptyString(workId)) return false;
+    const work = works.get(workId.trim());
+    if (!work || work.summary.status !== "running") return false;
+    work.summary.status = status;
+    if (status === "completed") {
+      work.result = payload.result ?? DEFAULT_COMPLETED_RESULT;
+    } else {
+      work.failureMessage = payload.failureMessage ?? DEFAULT_FAILURE_MESSAGE;
+    }
+    emit(work, status);
+    return true;
+  };
 
   const addWork = (work: MockWork): void => {
     works.set(work.summary.workId, work);
     order.push(work.summary.workId);
+    const delay = options.completeAfterMs ?? 0;
+    if (delay > 0 && work.summary.status === "running") {
+      const timer = setTimeout(() => {
+        transition(work.summary.workId, "completed");
+      }, delay) as unknown as { unref?: () => void };
+      timer.unref?.();
+    }
   };
 
   const seeds = options.works ?? defaultWorks();
@@ -181,7 +244,7 @@ export function createMockBackend(options: MockBackendOptions = {}): RouterBacke
   const notFound = <T>(workId: string): Outcome<T> =>
     fail(mode, "NOT_FOUND", `未找到工作：${workId}`);
 
-  const backend: RouterBackend = {
+  const backend: MockRouterBackend = {
     mode,
 
     async dispatch(input): Promise<Outcome<WorkSummary>> {
@@ -287,6 +350,21 @@ export function createMockBackend(options: MockBackendOptions = {}): RouterBacke
           )
           .map((record) => ({ ...record })),
       );
+    },
+
+    complete(workId, result) {
+      return transition(workId, "completed", { result });
+    },
+
+    fail(workId, message) {
+      return transition(workId, "failed", { failureMessage: message });
+    },
+
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     },
   };
 

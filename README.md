@@ -34,6 +34,16 @@ npx --yes . --mode json --no-session "汇总当前全部工作的进展与已完
 - 真实模型需要有效的 Pi 凭证：运行 `pi auth login <provider>`；凭证保存在 Pi 凭证存储，不随 Git 提交。
 - Node.js >= 22.19.0。
 
+## worker 状态推送
+
+后端可选实现 `RouterBackend.subscribe(listener)`：worker 从 running 变为 completed/failed 时推送 `WorkEvent`（只含 `workId`、状态与关联标识，不含结果）。router extension 会合并同一批事件、按 `eventId` 去重，再用 `router_work_event` 消息唤醒模型；模型随后调用 `router_collect` 取结果。不支持推送的后端可省略 `subscribe`，`router_list` / `router_collect` 仍可用。
+
+mock 用 `complete(workId)` / `fail(workId)` 模拟状态流转；演示入口可让 running 工作自动完成：
+
+```sh
+PI_ROUTER_MOCK_COMPLETE_MS=3000 npx --yes .
+```
+
 ## 边界
 
 - 默认后端是 mock：所有派活、worker 描述与结果均为模拟，不代表真实执行或沙盒隔离。

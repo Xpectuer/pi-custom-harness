@@ -17,6 +17,26 @@ export interface ContextRecord {
   text: string;
 }
 
+/** worker 完成或失败时推送的状态；不包含结果正文。 */
+export type WorkEventStatus = Extract<WorkStatus, "completed" | "failed">;
+
+/**
+ * worker 状态变化事件。只携带定位信息，结果仍由 collect 读取，
+ * 保证通知与结果只有一条事实来源。
+ */
+export interface WorkEvent {
+  /** 后端生成的事件唯一标识；router 用它去重。 */
+  eventId: string;
+  workId: string;
+  status: WorkEventStatus;
+  workerId: string;
+  sessionId: string;
+  /** ISO 8601 时间戳。 */
+  occurredAt: string;
+}
+
+export type WorkEventListener = (event: WorkEvent) => void;
+
 export interface WorkerDescriptor {
   workerId: string;
   sessionId: string;
@@ -74,6 +94,12 @@ export interface RouterBackend {
   inspect(workId: string): Promise<Outcome<WorkDetail>>;
   collect(workId: string): Promise<Outcome<CollectResult>>;
   queryContext(query: string, sessionId?: string): Promise<Outcome<ContextRecord[]>>;
+  /**
+   * 可选：订阅 worker 状态变化；返回取消订阅函数，重复调用安全。
+   * 只推送 running 之后的变化。不支持推送的后端省略此方法，
+   * router 仍可通过 list/collect 按需获取状态。
+   */
+  subscribe?(listener: WorkEventListener): () => void;
 }
 
 export function isNonEmptyString(value: unknown): value is string {
