@@ -8,7 +8,7 @@
 - [Durable 执行语义](durable-execution.md) — 提交先行、task 检查点、崩溃恢复、所有权树、压缩与错误规则
 - [扩展、工具与 Code Mode](durable-extensions-and-tools.md) — extension/registry、system prompt sections、工具与嵌套调用、QuickJS 沙箱
 - [Router Harness](router-harness.md) — 五项 router 工具、后端契约、worker 状态推送、mock 生命周期、权限边界与 npx 入口
-- [Router Harness 运行与验收](router-harness-operations.md) — 启动命令、演示路径、AC-1 至 AC-11 证据、发布与排障
+- [Router Harness 运行与验收](router-harness-operations.md) — 启动命令、演示路径、AC-1 至 AC-11 与状态推送证据、发布与排障
 - [Router Harness 决策与边界](router-harness-decisions.md) — D-1 至 D-5、A-S1/A-S2、规格偏差、风险与范围外
 
 ## 源

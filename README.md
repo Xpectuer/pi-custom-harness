@@ -44,6 +44,10 @@ mock 用 `complete(workId)` / `fail(workId)` 模拟状态流转；演示入口�
 PI_ROUTER_MOCK_COMPLETE_MS=3000 npx --yes .
 ```
 
+## 上下文水线
+
+router 默认在每次 run 结束后检查上下文：达到当前模型窗口的 50% 就触发 compact（`ROUTER_COMPACT_AT_PERCENT`）。`compaction.enabled=false`、aborted run 或用量未知时跳过。
+
 ## 边界
 
 - 默认后端是 mock：所有派活、worker 描述与结果均为模拟，不代表真实执行或沙盒隔离。

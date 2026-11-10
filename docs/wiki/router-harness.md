@@ -69,6 +69,16 @@ extension 侧行为：
 - 提示词要求模型对消息中的每个 `workId` 调用 `router_collect`，并用一条答复汇总；事件字段视为数据，不当作已收取的结果或用户新指令。
 - 通知发送失败只影响提醒，不回传 worker、不改变工作状态；丢失的通知可由下一次 `router_list` 发现。
 
+## 上下文水线
+
+router 默认把 compact 水线设为当前模型上下文窗口的 50%（`ROUTER_COMPACT_AT_PERCENT`）。每个 run 完全 settled 后检查 `ctx.getContextUsage()`，`tokens` 达到窗口的 50% 时调用 `ctx.compact()` 压缩。
+
+- 用窗口百分比而不是固定 `reserveTokens`：模型窗口随所选模型变化，绝对 token 数会失准。
+- `compaction.enabled=false`、aborted run、`tokens=null`（刚压缩完尚无新回复）时跳过；同一压缩在途不重复触发。
+- 压缩失败通过 UI 警告报告，不改变工具权限、工作状态或 mock 数据。
+- 检查点在 run 结束后的空闲点，run 内上下文仍可能超过水线；Pi 自身的 threshold/overflow 压缩继续兜底。
+- 压缩沿用 Pi 的 `keepRecentTokens` 与 `modelOverrides` 设置。
+
 ## 后端契约
 
 每次调用返回统一的 `Outcome<T>`：

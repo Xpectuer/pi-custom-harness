@@ -34,6 +34,9 @@ export const ROUTER_TOOL_NAMES = [
 
 const ROUTER_TOOL_SET = new Set<string>(ROUTER_TOOL_NAMES);
 
+/** 默认 compact 水线：上下文达到模型窗口的 50% 时压缩。 */
+export const ROUTER_COMPACT_AT_PERCENT = 50;
+
 const ContextRecordSchema = Type.Object(
   {
     recordId: Type.String({ description: "上下文记录标识" }),
@@ -239,6 +242,25 @@ export function registerRouter(
   });
 
   pi.on("session_shutdown", stopNotices);
+
+  let waterlineCompacting = false;
+  pi.on("agent_settled", (event, ctx) => {
+    if (event.aborted || waterlineCompacting) return;
+    if (pi.getSettings().compaction?.enabled === false) return;
+    const usage = ctx.getContextUsage();
+    if (!usage || usage.tokens === null || usage.contextWindow <= 0) return;
+    if (usage.tokens < (usage.contextWindow * ROUTER_COMPACT_AT_PERCENT) / 100) return;
+    waterlineCompacting = true;
+    ctx.compact({
+      onComplete: () => {
+        waterlineCompacting = false;
+      },
+      onError: (error) => {
+        waterlineCompacting = false;
+        ctx.ui.notify(`router: ${ROUTER_COMPACT_AT_PERCENT}% 水线压缩失败：${error.message}`, "warning");
+      },
+    });
+  });
 
   pi.on("before_agent_start", (event) => {
     enforceRouterTools();

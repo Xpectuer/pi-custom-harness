@@ -52,9 +52,9 @@ updated: 2026-11-10
 - **Worker** — 执行工作的 Pi agent；契约保留 Pi 默认工具与沙盒 workspace 责任，mock 只描述关联。
 - **WorkerDescriptor** — inspect 返回的 worker 描述：workspace 关联与 capabilities（profile/tools/skills）；mock 的 `isolation=simulated`。
 - **WorkEvent** — worker 从 running 转为 completed/failed 的推送事件，含 `eventId`、`workId`、状态、worker/session 与时间；不含结果正文，结果仍由 `router_collect` 读取。
-- **状态推送** — 后端通过可选 `subscribe(listener)` 把 `WorkEvent` 交给 router extension；extension 去重、合并后用 `router_work_event` 自定义消息唤醒模型，不新增工具或后台轮询。
 - **WorkSummary / WorkDetail** — list/dispatch 返回摘要；inspect 返回详情，含 context 与 worker，不含完成结果。
 - **Wrap** — extension 对某个 tool 或 section 的装饰器，作用于该名字最终胜出的实现。
+- **状态推送** — 后端通过可选 `subscribe(listener)` 把 `WorkEvent` 交给 router extension；extension 去重、合并后用 `router_work_event` 自定义消息唤醒模型，不新增工具或后台轮询。
 
 ## 来源
 

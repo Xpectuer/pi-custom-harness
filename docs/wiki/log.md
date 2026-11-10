@@ -44,3 +44,20 @@
 - 凭证：真实模型使用开发者自己的 Pi 凭证，运行 `pi auth login <provider>`；凭证存 Pi 存储，不随 Git 提交。
 - AC：SPEC v1 的“待执行计划”文本保留为历史；以 MVP v6 执行记录为准。
 - 更新：`router-harness.md`、`router-harness-operations.md`、`router-harness-decisions.md`、`sources/router-harness-spec-20261110.md`、`sources/router-harness-mvp-20261110.md`、`../archives/dev-router-harness-261110/README.md`、`../../README.md`。
+
+## [2026-11-10] update | Router worker 状态推送
+
+- 契约：`RouterBackend.subscribe?(listener)` 推送 `WorkEvent`；事件只带 `eventId`、`workId`、状态、worker/session 与时间，结果仍由 `router_collect` 读取。
+- 行为：`eventId` 去重、200ms 合并；`router_work_event` 自定义消息以 `triggerTurn` 唤醒模型；`session_start` 订阅、`session_shutdown` 清理；发送失败不影响工作状态。
+- mock：新增 `complete()` / `fail()` 控制面与 `completeAfterMs`；`PI_ROUTER_MOCK_COMPLETE_MS` 在默认入口启用演示。
+- 更新：`README.md`、`router-harness.md`、`router-harness-operations.md`、`router-harness-decisions.md`、`glossary.md`、仓库 `README.md`。
+- 验证：`tsc --noEmit` 通过；扩展层冒烟覆盖去重/合并/生命周期/无 `subscribe` 适配器/发送异常；真实模型观察到 `router_work_event` 触发新 run 并调用 `router_collect`。
+- Lint：15 页、0 断链；索引覆盖全部页面；source 页入链均 ≥6；frontmatter 完整。
+
+## [2026-11-10] lint | Router wiki 通知更新后检查
+
+- 范围：`docs/wiki` 15 页。
+- 矛盾：1 项——`sources/router-harness-intent-20261110.md` 与 `sources/router-harness-mvp-20261110.md` 保留“本轮不要求主动通知”；已在 `router-harness-decisions.md#规格与实现偏差` 成对标注为 **Resolved**。
+- 过期声明：0；孤儿页：0；缺失页：0；缺交叉引用：0；断链：0。
+- 数据缺口：1 项——跨进程/跨主机送达未实现，已列入范围外与已知限制。
+- 修正：`glossary.md` 将“状态推送”移到英文术语列表末尾；`README.md` 运行页摘要补状态推送证据。
