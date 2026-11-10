@@ -1,0 +1,111 @@
+{
+  "schema": 1,
+  "checkpoints": [
+    {
+      "id": "CP-1",
+      "intent_sha256": "4938672d2b1e01c31ab49a840d5f81fec7bb787f9f786504208c65a06a2ea961",
+      "status": "selected",
+      "selection": {
+        "choice": "C-premortem",
+        "source": "页面回复"
+      },
+      "snapshot": {
+        "goal": "由 Pi router 管理 workers 与跨 session 上下文，减少用户切换 session 的负担",
+        "scope": "D-1 五项能力命名；本轮仅接口与 mock",
+        "progress": "D-1 已批准并保存为 v2；批准范围仅命名基线，不含整份需求或具体 API",
+        "knowledge": {
+          "known_knowns": [
+            "已确认：dispatch、list、inspect、collect、queryContext 五项命名（D-1，用户回答 approve）",
+            "已确认：collect 不暗含合并代码或销毁 session（D-1 所选方案）"
+          ],
+          "known_unknowns": [
+            "整份 INTENT 尚未批准；仅 D-1 获局部授权",
+            "接口字段、状态与错误语义尚未定义，留待规格阶段（INTENT 假设节）"
+          ],
+          "unknown_unknowns": [
+            "潜在盲区：mock 演示可能未暴露真实接入障碍；下一簇可预演失败，不将风险当成已发生事实"
+          ],
+          "unknown_knowns": []
+        },
+        "clusters": [
+          {
+            "id": "C-premortem",
+            "title": "失败预演",
+            "why": "收束前检查当前 mock 目标是否遗漏关键成功条件",
+            "questions": [
+              "六个月后若方向失败，最可能是哪类原因？"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "CP-2",
+      "intent_sha256": "73fbf23e2b5cd4a1961ddefa71fb55adc44455d9de954cef656ae2f20f207ddb",
+      "status": "selected",
+      "selection": {
+        "choice": "C-premortem",
+        "source": "页面回复"
+      },
+      "snapshot": {
+        "goal": "由 Pi router 管理 workers 与跨 session 上下文，减少用户切换 session 的负担",
+        "scope": "Q-2 集成入口选择；本轮仅接口与 mock",
+        "progress": "D-3 已记录：采用 Pi extension；INTENT v5 仅局部授权，Q-1 保持暂缓",
+        "knowledge": {
+          "known_knowns": [
+            "已确认：Pi extension 复用 Pi CLI（D-3，页面回复选择 A）",
+            "已确认：五项能力命名基线（D-1）；首要风险为协调负担未下降（D-2）"
+          ],
+          "known_unknowns": [
+            "Q-1：协调负担下降的验收边界未定，影响 R-1、R-3",
+            "整份需求尚未批准；其余技术建议留待规格细化，不由入口选择自动授权"
+          ],
+          "unknown_unknowns": [
+            "潜在盲区：mock 演示可能遗漏真实多任务协作中的摩擦；尚无实现验证"
+          ],
+          "unknown_knowns": []
+        },
+        "clusters": [
+          {
+            "id": "C-premortem",
+            "title": "失败预演",
+            "why": "已明确首要风险，继续确定如何证明协调负担下降",
+            "questions": [
+              "Q-1：按需统一汇总，还是必须主动报告？"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "CP-3",
+      "intent_sha256": "43e6303f2213e09fcb0de04c2e74c9e56f098a98719b315830d5cffddc8f0d92",
+      "status": "finished",
+      "selection": {
+        "choice": "finish",
+        "source": "页面回复"
+      },
+      "snapshot": {
+        "goal": "由 Pi router 管理 workers 与跨 session 上下文，减少用户切换 session 的负担",
+        "scope": "失败预演与 Q-1 协调验收边界；本轮仅接口与 mock",
+        "progress": "D-4 已保存至 INTENT v6：按需统一汇总，不要求主动通知；Q-1、Q-2 均已解决，整份 v6 尚待批准",
+        "knowledge": {
+          "known_knowns": [
+            "已确认：用户问一次，router 查询各项状态并汇总已完成结果（D-4）",
+            "已确认：用户无需逐项提供 ID、切 session 或复制结果；本轮不要求主动通知（D-4）",
+            "已确认：Pi extension 入口（D-3）与五项能力命名（D-1）"
+          ],
+          "known_unknowns": [
+            "整份 v6 尚未批准，不能直接进入 /to-spec",
+            "具体接口字段、状态与错误语义留待规格阶段；内存 mock 仍属技术建议"
+          ],
+          "unknown_unknowns": [
+            "潜在盲区：真实后端接入可能出现 mock 未覆盖的协作摩擦；不将讨论结论当作运行证据"
+          ],
+          "unknown_knowns": []
+        },
+        "clusters": []
+      }
+    }
+  ]
+}

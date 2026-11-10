@@ -12,7 +12,7 @@
 |---|---|
 | `modules/pi` | 上游 pi 源码归档，固定 commit `815541a`（CLI 1.5.1）。只读参考，不在其中开发或提交 |
 | `examples/` | 自定义 extension / 工具示例，供 `pi -e` 直接加载 |
-| `docs/` | 调研、设计、决策和实测证据；[工具调研](docs/pi-custom-tools-research.md)、[当前规格](docs/current/SPEC.md)（[评审视图](docs/current/SPEC.html)，本地任务上下文） |
+| `docs/` | 调研、设计、决策和实测证据；[工具调研](docs/pi-custom-tools-research.md)、[最近任务归档](docs/archives/dev-router-harness-261110/MVP.md)（[评审视图](docs/archives/dev-router-harness-261110/MVP.html)） |
 | 根目录 | `package.json` 仅用于 npx 入口，`bin/pi-router-harness.mjs` 是启动包装器；无依赖和构建脚本，不要在本仓库根安装 Pi 依赖 |
 
 ## 定制原则
