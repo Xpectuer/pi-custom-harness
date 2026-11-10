@@ -1,0 +1,3 @@
+[submodule "modules/pi"]
+	path = modules/pi
+	url = https://github.com/earendil-works/pi.git

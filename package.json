@@ -1,0 +1,27 @@
+{
+  "name": "pi-router-harness",
+  "version": "0.1.0",
+  "description": "Push-button Pi CLI entry for the router agent mock harness",
+  "type": "module",
+  "bin": {
+    "pi-router-harness": "bin/pi-router-harness.mjs"
+  },
+  "files": [
+    "bin",
+    "examples/router-agent.ts",
+    "examples/router",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Xpectuer/pi-custom-harness.git"
+  },
+  "homepage": "https://github.com/Xpectuer/pi-custom-harness#readme",
+  "bugs": {
+    "url": "https://github.com/Xpectuer/pi-custom-harness/issues"
+  },
+  "license": "UNLICENSED"
+}

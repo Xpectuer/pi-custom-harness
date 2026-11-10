@@ -1,0 +1,7 @@
+docs/current/
+.agents/
+.claude/
+node_modules/
+*.tgz
+.DS_Store
+npm-debug.log*
