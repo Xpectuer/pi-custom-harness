@@ -1,7 +1,7 @@
 {
   "name": "pi-router-harness",
   "version": "0.1.0",
-  "description": "Push-button Pi CLI entry for the router agent mock harness",
+  "description": "Pi task router with mock and durable read-only GitHub Release monitoring",
   "type": "module",
   "bin": {
     "pi-router-harness": "bin/pi-router-harness.mjs"
@@ -23,5 +23,8 @@
   "bugs": {
     "url": "https://github.com/Xpectuer/pi-custom-harness/issues"
   },
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  }
 }

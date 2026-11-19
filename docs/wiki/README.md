@@ -7,10 +7,10 @@
 - [Pi Durable harness 架构](durable-harness.md) — 定位、概念骨架、存储与执行环境、每会话 agent、多人视图
 - [Durable 执行语义](durable-execution.md) — 提交先行、task 检查点、崩溃恢复、所有权树、压缩与错误规则
 - [扩展、工具与 Code Mode](durable-extensions-and-tools.md) — extension/registry、system prompt sections、工具与嵌套调用、QuickJS 沙箱
-- [Router Harness](router-harness.md) — 五项 router 工具、后端契约、worker 状态推送、mock 生命周期、权限边界与 npx 入口
-- [Router Harness 运行与验收](router-harness-operations.md) — 启动命令、演示路径、AC-1 至 AC-11 与状态推送证据、发布与排障
-- [Router Harness 决策与边界](router-harness-decisions.md) — D-1 至 D-5、A-S1/A-S2、规格偏差、风险与范围外
-- [Router Harness Workspace 接入](router-harness-workspace-integration.md) — 实现 RouterBackend、映射 workspace、启动 worker、事件推送与验收清单
+- [Router Harness](router-harness.md) — 七工具、Task/Run、授权、SQLite、发布基线与持久通知
+- [Router Harness 运行与验收](router-harness-operations.md) — 本地 mock/backend 启动、恢复、取消与排障
+- [Router Harness 决策与边界](router-harness-decisions.md) — 固定读取器、有限重试、持久收据与风险
+- [Router Harness 后端接入](router-harness-workspace-integration.md) — 同一 RouterBackend 注入、可信原文与接收控制面
 
 ## 源
 
