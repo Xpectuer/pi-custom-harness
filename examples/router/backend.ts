@@ -1,119 +1,176 @@
-/**
- * Router 后端接口与共享数据类型。
- *
- * 接入方实现 RouterBackend，并在自己的 extension 入口中注入 registerRouter；
- * mock 后端只模拟协调语义，不代表真实 worker 执行或沙盒隔离。
- */
-
+/** 模型只能使用协调契约；会话、授权、数据目录由可信接入层绑定。 */
 export type BackendMode = "mock" | "backend";
-
-export type WorkStatus = "running" | "completed" | "failed";
-
-export type RouterErrorCode = "INVALID_ARGUMENT" | "NOT_FOUND" | "BACKEND_ERROR";
-
-export interface ContextRecord {
-  recordId: string;
+export const TASK_STATUSES = [
+  "active", "waiting_user", "waiting_external", "blocked", "cancel_requested",
+  "cancelled", "completed", "failed",
+] as const;
+export type TaskStatus = typeof TASK_STATUSES[number];
+export type RouterErrorCode = "INVALID_ARGUMENT" | "NOT_FOUND" | "BACKEND_ERROR"
+  | "IDEMPOTENCY_CONFLICT" | "PERMISSION_DENIED" | "AUTHORIZATION_EXPIRED"
+  | "AUTHORIZATION_REVOKED";
+export type Acceptance = "pending" | "accepted" | "rejected";
+export interface ContextRef { referenceId: string; sourceVersion: string }
+export interface ContextSource extends ContextRef {
+  sourceType: "user" | "web" | "model_summary";
+  sourceLocator: string;
   sessionId: string;
   text: string;
+  access: "allowed" | "denied";
 }
-
-/** worker 完成或失败时推送的状态；不包含结果正文。 */
-export type WorkEventStatus = Extract<WorkStatus, "completed" | "failed">;
-
-/**
- * worker 状态变化事件。只携带定位信息，结果仍由 collect 读取，
- * 保证通知与结果只有一条事实来源。
- */
-export interface WorkEvent {
-  /** 后端生成的事件唯一标识；router 用它去重。 */
-  eventId: string;
-  workId: string;
-  status: WorkEventStatus;
-  workerId: string;
-  sessionId: string;
-  /** ISO 8601 时间戳。 */
-  occurredAt: string;
+export interface TaskSummary {
+  taskId: string;
+  goal: string;
+  goalVersion: number;
+  ownerSessionId: string;
+  status: TaskStatus;
+  acceptance: Acceptance;
+  createdAt: string;
+  updatedAt: string;
+  waitReason?: string;
+  nextCheckAt?: string;
 }
-
-export type WorkEventListener = (event: WorkEvent) => void;
-
-export interface WorkerDescriptor {
-  workerId: string;
-  sessionId: string;
-  workspace: {
-    workspaceId: string;
-    isolation: "simulated" | "sandboxed";
-  };
-  capabilities: {
-    profile: "pi-default";
-    tools: string[];
-    skills: boolean;
-  };
+export interface Run {
+  runId: string;
+  taskId: string;
+  goalVersion: number;
+  executorId: string;
+  status: "queued" | "running" | "completed" | "failed" | "interrupted" | "cancelled";
+  startedAt: string;
+  endedAt?: string;
+  checkpoint?: string;
+  error?: string;
 }
-
-export interface WorkSummary {
-  workId: string;
-  task: string;
-  workerId: string;
-  sessionId: string;
-  workspaceId: string;
-  status: WorkStatus;
+export interface Authorization {
+  version: number;
+  readScopes: string[];
+  writeRoots: string[];
+  sendScopes: string[];
+  expiresAt: string;
+  approval: "approved" | "required";
+  revokedAt?: string;
 }
-
-export interface WorkDetail extends WorkSummary {
-  context: ContextRecord[];
-  worker: WorkerDescriptor;
-}
-
-export type CollectResult =
-  | { status: "completed"; workId: string; result: string }
-  | { status: "pending"; workId: string }
-  | { status: "failed"; workId: string; error: { message: string } };
-
-export interface DispatchInput {
-  task: string;
-  context?: ContextRecord[];
-}
-
-export interface OutcomeError {
-  code: RouterErrorCode;
+export interface InputReceipt {
+  inputId: string;
+  status: "received" | "applied" | "rejected";
+  goalVersion: number;
   message: string;
+  receivedAt: string;
+  runId?: string;
+  reason?: string;
 }
-
+export interface Action {
+  actionId: string;
+  taskId: string;
+  runId: string;
+  goalVersion: number;
+  authorizationVersion: number;
+  target: string;
+  check: "allowed" | RouterErrorCode;
+  effectState: "not_started" | "confirmed" | "unknown";
+  error?: string;
+}
+export interface ReleaseEvidence {
+  id: number;
+  tag_name: string;
+  published_at: string;
+  html_url: string;
+  fetchedAt: string;
+  source: string;
+  authorizationVersion: number;
+}
+export interface Delivery {
+  runId: string;
+  goalVersion: number;
+  stale: boolean;
+  summary: string;
+  artifacts: string[];
+  evidence: ReleaseEvidence[];
+  unfinished: string[];
+  blockers: string[];
+  acceptance: Acceptance;
+}
+export interface TaskDelivery {
+  taskId: string;
+  taskStatus: TaskStatus;
+  acceptance: Acceptance;
+  delivery: Delivery | null;
+  history: Delivery[];
+  pending: string | null;
+}
+export interface TaskEvent {
+  eventId: string;
+  taskId: string;
+  runId?: string;
+  eventType: string;
+  occurredAt: string;
+  targetSessionId: string;
+}
+export interface Notice extends TaskEvent {
+  deliveryState: "pending" | "in_flight" | "delivered" | "exhausted" | "reconciliation_required";
+  failureCount: number;
+  lastError?: string;
+  attempts: {
+    attemptId: string;
+    state: "in_flight" | "delivered" | "failed" | "unknown";
+    error?: string;
+  }[];
+}
+export interface TaskDetail extends TaskSummary {
+  runs: Run[];
+  inputs: InputReceipt[];
+  authorization: Authorization;
+  contexts: ContextSource[];
+  deliveries: Pick<Delivery, "runId" | "goalVersion" | "stale" | "acceptance">[];
+  actions: Action[];
+  notices: Notice[];
+  cancellation: { stopState: "none" | "stop_requested" | "stopped" | "effects_unknown" };
+  baseline: { releaseIds: number[]; establishedAt: string } | null;
+  executor: { isolation: "host" | "simulated"; profile: "github-release-read"; env: Record<string, string> };
+}
+export interface DispatchInput { requestId: string; task: string; contextRefs?: ContextRef[] }
+export interface ListInput {
+  statuses?: TaskStatus[];
+  updatedFrom?: string;
+  updatedTo?: string;
+  cursor?: string;
+  limit?: number;
+}
+export interface CancelReceipt {
+  accepted: boolean;
+  stopState: "stop_requested" | "stopped" | "effects_unknown";
+  effects: Action[];
+}
+export interface OutcomeError { code: RouterErrorCode; message: string }
 export type Outcome<T> =
   | { ok: true; mode: BackendMode; data: T }
   | { ok: false; mode: BackendMode; error: OutcomeError };
-
-/**
- * 后端实例就是数据可见范围；模型不能传目录、凭证或租户选择参数。
- */
 export interface RouterBackend {
   readonly mode: BackendMode;
-  dispatch(input: DispatchInput): Promise<Outcome<WorkSummary>>;
-  list(): Promise<Outcome<WorkSummary[]>>;
-  inspect(workId: string): Promise<Outcome<WorkDetail>>;
-  collect(workId: string): Promise<Outcome<CollectResult>>;
-  queryContext(query: string, sessionId?: string): Promise<Outcome<ContextRecord[]>>;
-  /**
-   * 可选：订阅 worker 状态变化；返回取消订阅函数，重复调用安全。
-   * 只推送 running 之后的变化。不支持推送的后端省略此方法，
-   * router 仍可通过 list/collect 按需获取状态。
-   */
-  subscribe?(listener: WorkEventListener): () => void;
+  dispatch(input: DispatchInput): Promise<Outcome<TaskSummary>>;
+  list(input?: ListInput): Promise<Outcome<{ items: TaskSummary[]; nextCursor: string | null }>>;
+  inspect(taskId: string): Promise<Outcome<TaskDetail>>;
+  collect(taskId: string): Promise<Outcome<TaskDelivery>>;
+  queryContext(query: string, sessionId?: string): Promise<Outcome<{ items: ContextSource[]; capability: "substring" }>>;
+  cancel(taskId: string): Promise<Outcome<CancelReceipt>>;
+  sendInput(taskId: string, message: string): Promise<Outcome<InputReceipt>>;
+  subscribe(listener: (event: TaskEvent) => void): () => void;
+  /** 仅可信会话适配层调用，不注册为模型工具。 */
+  bindSession(sessionId: string): void;
+  pendingNotices(sessionId: string): Promise<Outcome<Notice[]>>;
+  beginDelivery(eventId: string, sessionId: string): Promise<Outcome<Notice>>;
+  settleDelivery(eventId: string, attemptId: string, result: {
+    state: "delivered" | "failed" | "unknown"; error?: string;
+  }): Promise<Outcome<Notice>>;
+  reconcileDelivery(eventId: string, sessionId: string, attemptId: string): Promise<Outcome<Notice>>;
+  registerContextSource(source: ContextSource): void;
+  close(): void;
 }
-
 export function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
-
 export function ok<T>(mode: BackendMode, data: T): Outcome<T> {
   return { ok: true, mode, data };
 }
-
-export function fail<T>(
-  mode: BackendMode,
-  code: RouterErrorCode,
-  message: string,
-): Outcome<T> {
+export function fail<T>(mode: BackendMode, code: RouterErrorCode, message: string): Outcome<T> {
   return { ok: false, mode, error: { code, message } };
 }

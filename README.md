@@ -1,60 +1,44 @@
 # pi-router-harness
 
-Pi Router Agent 的一键启动入口：固定加载 `examples/router-agent.ts`，只暴露五项 `router_*` 协调工具，并使用进程内 mock 后端。
+Pi extension 的七工具任务入口。默认 mock；显式选择 backend 后，以本地 SQLite 保存任务，只读监控 `Xpectuer/pi-custom-harness` 的新正式 Release。
+
+## 本地使用
+
+前置：Pi 1.5.1、Node.js >=22.19.0。模型认证使用 `pi auth login <provider>`，不向发布读取器传递凭证。
+
+```sh
+# 合成演示，无网络执行
+npx --yes .
+
+# 真实读取，首次完整读取只建立基线
+npx --yes . --router-mode backend
+
+# 指定私有数据目录与原 Pi 会话；关闭后用相同参数恢复
+npx --yes . --router-mode backend \
+  --router-data-dir "$HOME/.pi/router-harness" --session-id <session-id>
+```
+
+需要代理时显式加 `--router-https-proxy http://127.0.0.1:7890`。默认不继承宿主代理；代理地址不支持凭证。
+
+要求模型：“用稳定 requestId 监控本项目的新正式 Release；无变化继续等待”。保存第一次返回的 `taskId`；重试创建必须复用原 `requestId`。
+
+## 行为
+
+- 七工具：`router_dispatch`、`router_list`、`router_inspect`、`router_collect`、`router_queryContext`、`router_cancel`、`router_sendInput`。
+- Task 身份跨检查与重启不变；每次检查有独立 Run。执行结束不等于验收通过。
+- 首次读取全部发布 ID 为基线；仅之后新出现的正式 Release 可交付。草稿、预发布和旧版本不触发成功。
+- Pi 关闭后暂停监控。恢复同库与原会话后继续；通知首次投递加三次重试，未知发送结果先核对持久记录。
+- 默认数据目录 `~/.pi/router-harness/`；同目录只允许一个后端。模型不能指定目录、授权、凭证或可执行脚本。
+- 读取器为 `isolation=host`，不是 OS 沙箱；仅匿名 GET 固定 GitHub releases API，不执行 shell，不访问发布 assets。
+- 达到模型上下文窗口的50%后，在 Pi 的 `agent_settled` 时尝试 compact；沿用 Pi 的 compaction 配置。
 
 ## 文档
 
-- [Workspace 接入 router agent](docs/wiki/router-harness-workspace-integration.md) — 实现 `RouterBackend`、把 workspace 映射到 worker、状态推送与验收清单
-- [Router Harness 架构](docs/wiki/router-harness.md) — 五项工具、后端契约、权限边界与 mock 生命周期
-- [Router Harness 运行与验收](docs/wiki/router-harness-operations.md) — 启动命令、演示路径、验收证据与排障
+- [架构与接口](docs/wiki/router-harness.md)
+- [运行与验收](docs/wiki/router-harness-operations.md)
+- [后端接入](docs/wiki/router-harness-workspace-integration.md)
+- [决策与边界](docs/wiki/router-harness-decisions.md)
 
-## 使用
+## 分发
 
-直接从 GitHub（npm 12 默认禁止 git 源，需显式允许）：
-
-```sh
-npx --yes --allow-git=all github:Xpectuer/pi-custom-harness
-```
-
-npm：
-
-```sh
-npx --yes pi-router-harness
-```
-
-本地仓库：
-
-```sh
-npx --yes .
-```
-
-其余参数原样传给 Pi，例如：
-
-```sh
-npx --yes . --mode json --no-session "汇总当前全部工作的进展与已完成结果"
-```
-
-## 前置
-
-- Pi CLI 已安装且在 `PATH` 中；可用 `PI_BIN=/path/to/pi` 指定可执行文件。
-- 真实模型需要有效的 Pi 凭证：运行 `pi auth login <provider>`；凭证保存在 Pi 凭证存储，不随 Git 提交。
-- Node.js >= 22.19.0。
-
-## worker 状态推送
-
-后端可选实现 `RouterBackend.subscribe(listener)`：worker 从 running 变为 completed/failed 时推送 `WorkEvent`（只含 `workId`、状态与关联标识，不含结果）。router extension 会合并同一批事件、按 `eventId` 去重，再用 `router_work_event` 消息唤醒模型；模型随后调用 `router_collect` 取结果。不支持推送的后端可省略 `subscribe`，`router_list` / `router_collect` 仍可用。
-
-mock 用 `complete(workId)` / `fail(workId)` 模拟状态流转；演示入口可让 running 工作自动完成：
-
-```sh
-PI_ROUTER_MOCK_COMPLETE_MS=3000 npx --yes .
-```
-
-## 上下文水线
-
-router 默认在每次 run 结束后检查上下文：达到当前模型窗口的 50% 就触发 compact（`ROUTER_COMPACT_AT_PERCENT`）。`compaction.enabled=false`、aborted run 或用量未知时跳过。
-
-## 边界
-
-- 默认后端是 mock：所有派活、worker 描述与结果均为模拟，不代表真实执行或沙盒隔离。
-- 启动时固定禁用内置工具、MCP、Skill、提示词模板与其他扩展；参数里的 `--tools` 等覆盖项仍会追加传给 Pi。
+已发布 npm `pi-router-harness@0.2.0` 对应原有演示；当前工作树功能尚未发布。体验当前实现请使用本地入口。未执行发布或部署。

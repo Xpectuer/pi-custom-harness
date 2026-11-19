@@ -1,372 +1,204 @@
-/**
- * 进程内 mock 后端。
- *
- * 只提供合成工作、worker 描述与上下文查询；不启动 worker、不读取真实 session、
- * 不创建 workspace，也不执行 task 文本。状态仅属于当前实例。
- */
-
+/** 合成任务控制面：不读网络、不写文件、不解释任务正文，重载即重置。 */
 import { randomUUID } from "node:crypto";
-import type {
-  BackendMode,
-  CollectResult,
-  ContextRecord,
-  Outcome,
-  RouterBackend,
-  WorkDetail,
-  WorkEvent,
-  WorkEventStatus,
-  WorkEventListener,
-  WorkStatus,
-  WorkSummary,
-  WorkerDescriptor,
+import {
+  TASK_STATUSES, fail, isNonEmptyString, ok,
+  type ContextSource, type Delivery, type Notice, type RouterBackend,
+  type TaskDetail, type TaskEvent, type TaskStatus,
 } from "./backend.ts";
-import { fail, isNonEmptyString, ok } from "./backend.ts";
-
-export interface MockWorkSeed {
-  task: string;
-  status: WorkStatus;
-  context?: ContextRecord[];
-  result?: string;
-  failureMessage?: string;
-}
 
 export interface MockBackendOptions {
-  /** 省略时使用默认两项演示工作；传 [] 表示空种子。 */
-  works?: MockWorkSeed[];
-  contexts?: ContextRecord[];
-  /** 默认派活结果的状态，默认 completed。 */
-  dispatchStatus?: WorkStatus;
-  dispatchResult?: string;
-  dispatchFailureMessage?: string;
-  /**
-   * > 0 时，running 种子与 running 派活在该毫秒数后自动完成，
-   * 并通过 subscribe 推送 work_completed。默认 0：不自动完成。
-   */
+  tasks?: { goal: string; status: TaskStatus }[];
+  contexts?: ContextSource[];
+  dispatchStatus?: "active" | "completed" | "failed";
   completeAfterMs?: number;
 }
-
-/** mock 专用控制面：只给接入代码/测试模拟 worker 状态流转，不暴露给模型。 */
 export interface MockRouterBackend extends RouterBackend {
-  /** 将 running 工作置为 completed 并推送事件；返回是否发生流转。 */
-  complete(workId: string, result?: string): boolean;
-  /** 将 running 工作置为 failed 并推送事件；返回是否发生流转。 */
-  fail(workId: string, message?: string): boolean;
+  complete(taskId: string, summary?: string): boolean;
+  fail(taskId: string, message?: string): boolean;
 }
-
-const DEFAULT_COMPLETED_RESULT =
-  "模拟结果，未执行真实工作：固定合成应答，任务没有执行。";
-const DEFAULT_FAILURE_MESSAGE = "模拟失败，未执行真实工作。";
-const CAPABILITY_TOOLS = ["read", "bash", "edit", "write"];
-
-interface MockWork {
-  summary: WorkSummary;
-  context: ContextRecord[];
-  worker: WorkerDescriptor;
-  result?: string;
-  failureMessage?: string;
-}
-
-type Checked<T> = { ok: true; value: T } | { ok: false };
-
-function checkContext(value: unknown): Checked<ContextRecord[]> {
-  if (value === undefined) return { ok: true, value: [] };
-  if (!Array.isArray(value)) return { ok: false };
-  const records: ContextRecord[] = [];
-  for (const item of value) {
-    if (!item || typeof item !== "object") return { ok: false };
-    const record = item as Partial<ContextRecord>;
-    if (
-      !isNonEmptyString(record.recordId) ||
-      !isNonEmptyString(record.sessionId) ||
-      !isNonEmptyString(record.text)
-    ) {
-      return { ok: false };
-    }
-    records.push({
-      recordId: record.recordId,
-      sessionId: record.sessionId,
-      text: record.text,
-    });
+interface MockTask extends Omit<TaskDetail, "deliveries"> { deliveries: Delivery[] }
+export function createMockBackend(options: MockBackendOptions = {}): MockRouterBackend {
+  const mode = "mock" as const;
+  const tasks = new Map<string, MockTask>();
+  const requests = new Map<string, { fingerprint: string; taskId: string }>();
+  const sources = new Map<string, ContextSource>();
+  const listeners = new Set<(event: TaskEvent) => void>();
+  const timers = new Set<NodeJS.Timeout>();
+  let session = "mock-session";
+  const now = () => new Date().toISOString();
+  for (const source of options.contexts ?? [{
+    referenceId: "mock-context", sourceVersion: "1", sourceType: "user",
+    sourceLocator: "mock:interface", sessionId: "mock-session-source",
+    text: "接口约束：七项协调工具，正文不授予权限。", access: "allowed",
+  }]) sources.set(source.referenceId, structuredClone(source));
+  function emit(task: TaskDetail, eventType: string) {
+    const notice: Notice = { eventId: `mock-event-${randomUUID()}`, taskId: task.taskId,
+      runId: task.runs.at(-1)?.runId, eventType, occurredAt: now(), targetSessionId: task.ownerSessionId,
+      deliveryState: "pending", failureCount: 0, attempts: [] };
+    task.notices.push(notice);
+    for (const listener of listeners) listener(structuredClone(notice));
   }
-  return { ok: true, value: records };
-}
-
-function cloneSummary(work: WorkSummary): WorkSummary {
-  return { ...work };
-}
-
-function cloneWorker(worker: WorkerDescriptor): WorkerDescriptor {
-  return {
-    workerId: worker.workerId,
-    sessionId: worker.sessionId,
-    workspace: { ...worker.workspace },
-    capabilities: { ...worker.capabilities, tools: [...worker.capabilities.tools] },
-  };
-}
-
-function workerFor(work: WorkSummary): WorkerDescriptor {
-  return {
-    workerId: work.workerId,
-    sessionId: work.sessionId,
-    workspace: { workspaceId: work.workspaceId, isolation: "simulated" },
-    capabilities: {
-      profile: "pi-default",
-      tools: [...CAPABILITY_TOOLS],
-      skills: true,
-    },
-  };
-}
-
-function defaultWorks(): MockWorkSeed[] {
-  return [
-    {
-      task: "完成一项模拟 worker 任务",
-      status: "completed",
-      result: DEFAULT_COMPLETED_RESULT,
-    },
-    {
-      task: "保持一项模拟 worker 任务运行中",
-      status: "running",
-    },
-  ];
-}
-
-function defaultContexts(): ContextRecord[] {
-  return [
-    {
-      recordId: "mock-ctx-interface",
-      sessionId: "mock-session-alpha",
-      text: "接口约束：router 只能通过 dispatch、list、inspect、collect、queryContext 协调 workers。",
-    },
-    {
-      recordId: "mock-ctx-isolation",
-      sessionId: "mock-session-beta",
-      text: "workspace 仅为模拟标识，不构成沙盒隔离证据。",
-    },
-    {
-      recordId: "mock-ctx-handoff",
-      sessionId: "mock-session-beta",
-      text: "跨 session 复用上下文时保留 recordId 与 sessionId 来源。",
-    },
-  ];
-}
-
-export function createMockBackend(
-  options: MockBackendOptions = {},
-): MockRouterBackend {
-  const mode: BackendMode = "mock";
-  const instanceTag = randomUUID().replace(/-/g, "").slice(0, 8);
-  const works = new Map<string, MockWork>();
-  const order: string[] = [];
-  const contexts = (options.contexts ?? defaultContexts()).map((record) => ({ ...record }));
-  const listeners = new Set<WorkEventListener>();
-  let dispatchCounter = 0;
-  let eventCounter = 0;
-
-  const emit = (work: MockWork, status: WorkEventStatus): void => {
-    const event: WorkEvent = {
-      eventId: `${work.summary.workId}:${status}:${++eventCounter}`,
-      workId: work.summary.workId,
-      status,
-      workerId: work.summary.workerId,
-      sessionId: work.summary.sessionId,
-      occurredAt: new Date().toISOString(),
-    };
-    for (const listener of [...listeners]) {
-      try {
-        listener(event);
-      } catch {
-        // 监听器异常不影响 mock 的状态流转。
+  function complete(taskId: string, text = "模拟结果，未执行真实工作"): boolean {
+    const task = tasks.get(taskId);
+    if (!task || !["active", "waiting_external"].includes(task.status)) return false;
+    task.status = "completed"; task.acceptance = "accepted"; task.updatedAt = now();
+    const run = task.runs.at(-1)!;
+    run.status = "completed"; run.endedAt = now();
+    const delivery: Delivery = { runId: run.runId, goalVersion: task.goalVersion, stale: false,
+      summary: text, artifacts: [], evidence: [], unfinished: [], blockers: [], acceptance: "accepted" };
+    task.deliveries.push(delivery); emit(task, "task_completed"); return true;
+  }
+  function add(goal: string, status: TaskStatus, contexts: ContextSource[] = []): MockTask {
+    const taskId = `mock-task-${randomUUID()}`;
+    const task: MockTask = { taskId, goal, goalVersion: 1, ownerSessionId: session, status: "active",
+      acceptance: "pending", createdAt: now(), updatedAt: now(),
+      runs: [{ runId: `mock-run-${randomUUID()}`, taskId, goalVersion: 1, executorId: "mock",
+        status: "running", startedAt: now() }], inputs: [], contexts, deliveries: [], actions: [], notices: [],
+      authorization: { version: 1, readScopes: [], writeRoots: [], sendScopes: [session],
+        expiresAt: "9999-01-01T00:00:00.000Z", approval: "approved" },
+      cancellation: { stopState: "none" }, baseline: null,
+      executor: { isolation: "simulated", profile: "github-release-read", env: {} } };
+    tasks.set(taskId, task);
+    if (status === "completed") complete(taskId);
+    else {
+      task.status = status;
+      if (status === "failed") { task.runs[0].status = "failed"; task.waitReason = "模拟失败，未执行真实工作"; }
+      if ((options.completeAfterMs ?? 0) > 0 && ["active", "waiting_external"].includes(status)) {
+        const timer = setTimeout(() => { timers.delete(timer); complete(taskId); }, options.completeAfterMs);
+        timer.unref(); timers.add(timer);
       }
     }
-  };
-
-  const transition = (
-    workId: string,
-    status: WorkEventStatus,
-    payload: { result?: string; failureMessage?: string } = {},
-  ): boolean => {
-    if (!isNonEmptyString(workId)) return false;
-    const work = works.get(workId.trim());
-    if (!work || work.summary.status !== "running") return false;
-    work.summary.status = status;
-    if (status === "completed") {
-      work.result = payload.result ?? DEFAULT_COMPLETED_RESULT;
-    } else {
-      work.failureMessage = payload.failureMessage ?? DEFAULT_FAILURE_MESSAGE;
+    return task;
+  }
+  for (const seed of options.tasks ?? [{ goal: "合成完成任务", status: "completed" }, { goal: "合成等待任务", status: "waiting_external" }]) add(seed.goal, seed.status);
+  function taskSummary(task: TaskDetail) {
+    const { taskId, goal, goalVersion, ownerSessionId, status, acceptance, createdAt, updatedAt, waitReason, nextCheckAt } = task;
+    return { taskId, goal, goalVersion, ownerSessionId, status, acceptance, createdAt, updatedAt, waitReason, nextCheckAt };
+  }
+  function findNotice(eventId: string) {
+    for (const task of tasks.values()) {
+      const notice = task.notices.find((item) => item.eventId === eventId);
+      if (notice) return notice;
     }
-    emit(work, status);
-    return true;
-  };
-
-  const addWork = (work: MockWork): void => {
-    works.set(work.summary.workId, work);
-    order.push(work.summary.workId);
-    const delay = options.completeAfterMs ?? 0;
-    if (delay > 0 && work.summary.status === "running") {
-      const timer = setTimeout(() => {
-        transition(work.summary.workId, "completed");
-      }, delay) as unknown as { unref?: () => void };
-      timer.unref?.();
-    }
-  };
-
-  const seeds = options.works ?? defaultWorks();
-  seeds.forEach((seed, index) => {
-    const contextCheck = checkContext(seed.context);
-    if (!contextCheck.ok) {
-      throw new Error(`mock seed #${index + 1} 的 context 必须是 ContextRecord 数组`);
-    }
-    const fleetLabel = index % 2 === 0 ? "alpha" : "beta";
-    const status: WorkStatus = seed.status;
-    const workId = `mock-work-${status}-${index === 0 ? "" : `${index + 1}-`}${instanceTag}`;
-    const summary: WorkSummary = {
-      workId,
-      task: seed.task,
-      workerId: `mock-worker-${index + 1}`,
-      sessionId: `mock-session-${fleetLabel}`,
-      workspaceId: `mock-workspace-${index + 1}`,
-      status,
-    };
-    addWork({
-      summary,
-      context: contextCheck.value.map((record) => ({ ...record })),
-      worker: workerFor(summary),
-      result:
-        seed.result ??
-        (status === "completed" ? DEFAULT_COMPLETED_RESULT : undefined),
-      failureMessage:
-        seed.failureMessage ??
-        (status === "failed" ? DEFAULT_FAILURE_MESSAGE : undefined),
-    });
-  });
-
-  const notFound = <T>(workId: string): Outcome<T> =>
-    fail(mode, "NOT_FOUND", `未找到工作：${workId}`);
-
+  }
   const backend: MockRouterBackend = {
     mode,
-
-    async dispatch(input): Promise<Outcome<WorkSummary>> {
-      if (!isNonEmptyString(input?.task)) {
-        return fail(mode, "INVALID_ARGUMENT", "task 必须是非空字符串");
+    async dispatch(input) {
+      if (!input || !isNonEmptyString(input.task) || !isNonEmptyString(input.requestId)
+        || Object.keys(input).some((key) => !["requestId", "task", "contextRefs"].includes(key)))
+        return fail(mode, "INVALID_ARGUMENT", "requestId/task 必须非空，参数仅支持可信引用");
+      const refs = input.contextRefs ?? [];
+      if (!Array.isArray(refs) || refs.some((ref) => !ref || !isNonEmptyString(ref.referenceId) || !isNonEmptyString(ref.sourceVersion) || Object.keys(ref).some((key) => !["referenceId", "sourceVersion"].includes(key))))
+        return fail(mode, "INVALID_ARGUMENT", "contextRefs 无效");
+      const fingerprint = JSON.stringify([input.task.trim(), [...refs].sort((a, b) => a.referenceId.localeCompare(b.referenceId))]);
+      const previous = requests.get(input.requestId.trim());
+      if (previous) return previous.fingerprint === fingerprint ? ok(mode, taskSummary(tasks.get(previous.taskId)!)) : fail(mode, "IDEMPOTENCY_CONFLICT", "同键异内容");
+      const contexts: ContextSource[] = [];
+      for (const ref of refs) {
+        const source = sources.get(ref.referenceId);
+        if (!source || source.access !== "allowed" || source.sourceVersion !== ref.sourceVersion) return fail(mode, "PERMISSION_DENIED", "上下文无权访问或版本已变化");
+        contexts.push(structuredClone(source));
       }
-      const contextCheck = checkContext(input.context);
-      if (!contextCheck.ok) {
-        return fail(mode, "INVALID_ARGUMENT", "context 必须是 ContextRecord 数组");
+      const task = add(input.task.trim(), options.dispatchStatus ?? "completed", contexts);
+      requests.set(input.requestId.trim(), { fingerprint, taskId: task.taskId });
+      return ok(mode, taskSummary(task));
+    },
+    async list(input = {}) {
+      const limit = input.limit ?? 20;
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100 || (input.statuses && (!Array.isArray(input.statuses) || input.statuses.some((status) => !TASK_STATUSES.includes(status))))
+        || [input.updatedFrom, input.updatedTo].some((value) => value !== undefined && !Number.isFinite(Date.parse(value))))
+        return fail(mode, "INVALID_ARGUMENT", "列表过滤无效");
+      const binding = JSON.stringify([input.statuses ?? [], input.updatedFrom, input.updatedTo]);
+      let after = "";
+      if (input.cursor !== undefined) {
+        try {
+          const cursor = JSON.parse(Buffer.from(input.cursor, "base64url").toString());
+          if (cursor.binding !== binding || typeof cursor.after !== "string") return fail(mode, "INVALID_ARGUMENT", "游标不匹配");
+          after = cursor.after;
+        } catch { return fail(mode, "INVALID_ARGUMENT", "游标无效"); }
       }
-
-      const task = input.task.trim();
-      const status: WorkStatus = options.dispatchStatus ?? "completed";
-      const sequence = ++dispatchCounter;
-      const summary: WorkSummary = {
-        workId: `mock-work-dispatch-${sequence}-${instanceTag}`,
-        task,
-        workerId: `mock-worker-dispatch-${sequence}`,
-        sessionId: `mock-session-dispatch-${sequence}`,
-        workspaceId: `mock-workspace-dispatch-${sequence}`,
-        status,
-      };
-      addWork({
-        summary,
-        context: contextCheck.value,
-        worker: workerFor(summary),
-        result:
-          options.dispatchResult ??
-          (status === "completed" ? DEFAULT_COMPLETED_RESULT : undefined),
-        failureMessage:
-          options.dispatchFailureMessage ??
-          (status === "failed" ? DEFAULT_FAILURE_MESSAGE : undefined),
-      });
-      return ok(mode, cloneSummary(summary));
+      const key = (task: TaskDetail) => `${task.updatedAt}/${task.taskId}`;
+      const matches = [...tasks.values()].filter((task) => (!input.statuses?.length || input.statuses.includes(task.status))
+        && (!input.updatedFrom || task.updatedAt >= new Date(input.updatedFrom).toISOString())
+        && (!input.updatedTo || task.updatedAt < new Date(input.updatedTo).toISOString()) && key(task) > after)
+        .sort((a, b) => key(a).localeCompare(key(b)));
+      const page = matches.slice(0, limit);
+      return ok(mode, { items: page.map(taskSummary), nextCursor: matches.length > limit ? Buffer.from(JSON.stringify({ binding, after: key(page.at(-1)!) })).toString("base64url") : null });
     },
-
-    async list(): Promise<Outcome<WorkSummary[]>> {
-      return ok(
-        mode,
-        order.map((workId) => cloneSummary(works.get(workId)!.summary)),
-      );
+    async inspect(taskId) {
+      const task = tasks.get(taskId);
+      return task ? ok(mode, structuredClone({ ...task, deliveries: task.deliveries.map(({ runId, goalVersion, stale, acceptance }) => ({ runId, goalVersion, stale, acceptance })) })) : fail(mode, "NOT_FOUND", "未找到模拟任务");
     },
-
-    async inspect(workId): Promise<Outcome<WorkDetail>> {
-      if (!isNonEmptyString(workId)) {
-        return fail(mode, "INVALID_ARGUMENT", "workId 必须是非空字符串");
+    async collect(taskId) {
+      const task = tasks.get(taskId);
+      return task ? ok(mode, { taskId, taskStatus: task.status, acceptance: task.acceptance,
+        delivery: structuredClone(task.deliveries.filter((delivery) => !delivery.stale).at(-1) ?? null),
+        history: structuredClone(task.deliveries.filter((delivery) => delivery.stale)),
+        pending: task.acceptance === "accepted" ? null : task.waitReason ?? "模拟等待，未执行真实工作" }) : fail(mode, "NOT_FOUND", "未找到模拟任务");
+    },
+    async queryContext(query, sessionId) {
+      if (!isNonEmptyString(query) || (sessionId !== undefined && !isNonEmptyString(sessionId))) return fail(mode, "INVALID_ARGUMENT", "query/sessionId 必须非空");
+      return ok(mode, { capability: "substring", items: [...sources.values()].filter((source) => source.access === "allowed"
+        && (!sessionId || source.sessionId === sessionId) && source.text.toLowerCase().includes(query.trim().toLowerCase())).map((source) => structuredClone(source)) });
+    },
+    async cancel(taskId) {
+      const task = tasks.get(taskId);
+      if (!task) return fail(mode, "NOT_FOUND", "未找到模拟任务");
+      if (task.status !== "completed" && task.status !== "failed") {
+        task.status = "cancelled"; task.cancellation.stopState = "stopped"; task.authorization.revokedAt ??= now();
+        task.runs.at(-1)!.status = "cancelled"; task.updatedAt = now();
       }
-      const work = works.get(workId.trim());
-      if (!work) return notFound<WorkDetail>(workId.trim());
-      return ok(mode, {
-        ...cloneSummary(work.summary),
-        context: work.context.map((record) => ({ ...record })),
-        worker: cloneWorker(work.worker),
-      });
+      return ok(mode, { accepted: task.status === "cancelled", stopState: "stopped", effects: [] });
     },
-
-    async collect(workId): Promise<Outcome<CollectResult>> {
-      if (!isNonEmptyString(workId)) {
-        return fail(mode, "INVALID_ARGUMENT", "workId 必须是非空字符串");
+    async sendInput(taskId, message) {
+      const task = tasks.get(taskId);
+      if (!task) return fail(mode, "NOT_FOUND", "未找到模拟任务");
+      if (!isNonEmptyString(message)) return fail(mode, "INVALID_ARGUMENT", "message 必须非空");
+      const rejected = ["completed", "cancelled", "failed"].includes(task.status);
+      if (!rejected) {
+        task.goal = message.trim(); task.goalVersion++; task.authorization.version++; task.updatedAt = now();
+        for (const delivery of task.deliveries) delivery.stale = true;
+        task.runs.push({ runId: `mock-run-${randomUUID()}`, taskId, goalVersion: task.goalVersion, executorId: "mock", status: "running", startedAt: now() });
       }
-      const work = works.get(workId.trim());
-      if (!work) return notFound<CollectResult>(workId.trim());
-
-      if (work.summary.status === "completed") {
-        return ok(mode, {
-          status: "completed",
-          workId: work.summary.workId,
-          result: work.result ?? DEFAULT_COMPLETED_RESULT,
-        });
-      }
-      if (work.summary.status === "running") {
-        return ok(mode, { status: "pending", workId: work.summary.workId });
-      }
-      return ok(mode, {
-        status: "failed",
-        workId: work.summary.workId,
-        error: {
-          message: work.failureMessage ?? DEFAULT_FAILURE_MESSAGE,
-        },
-      });
+      const receipt = { inputId: `mock-input-${randomUUID()}`, status: rejected ? "rejected" as const : "applied" as const,
+        goalVersion: task.goalVersion, message: message.trim(), receivedAt: now(), runId: rejected ? undefined : task.runs.at(-1)!.runId,
+        reason: rejected ? "模拟任务已结束" : undefined };
+      task.inputs.push(receipt); return ok(mode, receipt);
     },
-
-    async queryContext(query, sessionId): Promise<Outcome<ContextRecord[]>> {
-      if (!isNonEmptyString(query)) {
-        return fail(mode, "INVALID_ARGUMENT", "query 必须是非空字符串");
-      }
-      let sessionFilter: string | undefined;
-      if (sessionId !== undefined) {
-        if (!isNonEmptyString(sessionId)) {
-          return fail(mode, "INVALID_ARGUMENT", "sessionId 必须是非空字符串");
-        }
-        sessionFilter = sessionId.trim();
-      }
-
-      const needle = query.trim().toLowerCase();
-      return ok(
-        mode,
-        contexts
-          .filter(
-            (record) =>
-              record.text.trim().toLowerCase().includes(needle) &&
-              (sessionFilter === undefined || record.sessionId === sessionFilter),
-          )
-          .map((record) => ({ ...record })),
-      );
+    bindSession(sessionId) { session = sessionId; },
+    subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    async pendingNotices(sessionId) { return ok(mode, structuredClone([...tasks.values()].flatMap((task) => task.notices).filter((notice) => notice.targetSessionId === sessionId && notice.deliveryState !== "delivered"))); },
+    async beginDelivery(eventId, sessionId) {
+      const notice = findNotice(eventId);
+      if (!notice) return fail(mode, "NOT_FOUND", "未找到通知");
+      if (notice.targetSessionId !== sessionId || session !== sessionId) return fail(mode, "PERMISSION_DENIED", "原会话不匹配");
+      if (notice.deliveryState !== "pending" || notice.failureCount >= 4) return fail(mode, "INVALID_ARGUMENT", "通知不可发送");
+      notice.attempts.push({ attemptId: `mock-attempt-${randomUUID()}`, state: "in_flight" }); notice.deliveryState = "in_flight";
+      return ok(mode, structuredClone(notice));
     },
-
-    complete(workId, result) {
-      return transition(workId, "completed", { result });
+    async settleDelivery(eventId, attemptId, result) {
+      const notice = findNotice(eventId); const attempt = notice?.attempts.at(-1);
+      if (!notice || !attempt || attempt.attemptId !== attemptId) return fail(mode, "NOT_FOUND", "通知尝试不匹配");
+      if (attempt.state === "failed" || attempt.state === "delivered") return ok(mode, structuredClone(notice));
+      attempt.state = result.state; attempt.error = result.error; notice.lastError = result.error;
+      if (result.state === "failed") { notice.failureCount++; notice.deliveryState = notice.failureCount >= 4 ? "exhausted" : "pending"; }
+      else notice.deliveryState = result.state === "delivered" ? "delivered" : "reconciliation_required";
+      return ok(mode, structuredClone(notice));
     },
-
-    fail(workId, message) {
-      return transition(workId, "failed", { failureMessage: message });
+    async reconcileDelivery(eventId, sessionId, attemptId) {
+      const notice = findNotice(eventId);
+      const attempt = notice?.attempts.find((item) => item.attemptId === attemptId);
+      if (!notice || !attempt || notice.targetSessionId !== sessionId) return fail(mode, "PERMISSION_DENIED", "原会话收据不匹配");
+      attempt.state = "delivered"; notice.deliveryState = "delivered"; return ok(mode, structuredClone(notice));
     },
-
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
+    registerContextSource(source) { sources.set(source.referenceId, structuredClone(source)); },
+    complete,
+    fail(taskId, message = "模拟执行失败，未执行真实工作") {
+      const task = tasks.get(taskId);
+      if (!task || !["active", "waiting_external"].includes(task.status)) return false;
+      task.status = "waiting_external"; task.waitReason = message; task.runs.at(-1)!.status = "failed"; emit(task, "run_failed"); return true;
     },
+    close() { for (const timer of timers) clearTimeout(timer); timers.clear(); listeners.clear(); },
   };
-
   return backend;
 }
